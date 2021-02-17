@@ -1,0 +1,19 @@
+{
+  "name": "personal_wallet_backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon server.js"
+  },
+  "author": "prudvi",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.1",
+    "fetch": "^1.1.0",
+    "nodemon": "^2.0.7",
+    "pg": "^8.5.1"
+  }
+}
