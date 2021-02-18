@@ -20,7 +20,7 @@ async function getInitialBal(user_id) {
     'select balance from personalwallet where user_id=$1',
     [user_id]
   );
-  console.log(result.rows[0].balance, 'balance');
+  // console.log(result.rows[0].balance, 'balance');
   return result.rows[0].balance;
 }
 app.get('/allWallets', async (req, res) => {
@@ -40,9 +40,10 @@ app.get('/balance', async (req, res) => {
     .catch((e) => res.status(500).send(e.message));
 });
 app.get('/transactions', async (req, res) => {
-  const { user_id } = req.query;
   await pool
-    .query('select * from transactions where user_id=$1', [user_id])
+    .query(
+      'select pw.username,tr.trans_date,tr.amount,tr.final_balance,tr.transaction_type from transactions as tr inner join personalwallet as pw on tr.user_id=pw.user_id'
+    )
     .then((data) => res.status(200).send(data.rows))
     .catch((e) => res.status(401).send(e.message));
 });
@@ -59,7 +60,7 @@ app.put('/addFunds', async (req, res) => {
     .then(async () => {
       await pool
         .query(
-          'INSERT INTO public.transactions(user_id, transaction_type, trans_date, initial_balance, final_balance, remarks)	VALUES ($1, $2, $3, $4, $5, $6)',
+          'INSERT INTO public.transactions(user_id, transaction_type, trans_date, initial_balance, final_balance, remarks,amount)	VALUES ($1, $2, $3, $4, $5, $6,$7)',
           [
             user_id,
             'add_funds',
@@ -67,6 +68,7 @@ app.put('/addFunds', async (req, res) => {
             initial_balance,
             (initial_balance + parseFloat(amount)).toFixed(2),
             'added funds',
+            parseFloat(amount).toFixed(2),
           ]
         )
         .then((dt) => res.status(200).send(dt));
@@ -75,24 +77,31 @@ app.put('/addFunds', async (req, res) => {
 app.put('/spendFunds', async (req, res) => {
   const { user_id, amount } = req.body;
   const initial_balance = await getInitialBal(user_id);
-  await pool
-    .query('update personalwallet set balance=$1 where user_id=$2', [
-      (initial_balance - parseFloat(amount)).toFixed(2),
-      user_id,
-    ])
-    .then(async () => {
-      await pool.query(
-        'INSERT INTO public.transactions(user_id, transaction_type, trans_date, initial_balance, final_balance, remarks)	VALUES ($1, $2, $3, $4, $5, $6)',
-        [
-          user_id,
-          'spend_funds',
-          Date.now(),
-          initial_balance,
-          (initial_balance - parseFloat(amount)).toFixed(2),
-          'deducted funds',
-        ]
-      );
-    });
+  if (initial_balance >= parseFloat(amount)) {
+    await pool
+      .query('update personalwallet set balance=$1 where user_id=$2', [
+        (initial_balance - parseFloat(amount)).toFixed(2),
+        user_id,
+      ])
+      .then(async () => {
+        await pool
+          .query(
+            'INSERT INTO public.transactions(user_id, transaction_type, trans_date, initial_balance, final_balance, remarks,amount)	VALUES ($1, $2, $3, $4, $5, $6,$7)',
+            [
+              user_id,
+              'spend_funds',
+              new Date(),
+              initial_balance,
+              (initial_balance - parseFloat(amount)).toFixed(2),
+              'deducted funds',
+              parseFloat(amount).toFixed(2),
+            ]
+          )
+          .then((dt) => res.status(200).send(dt));
+      });
+  } else {
+    escape.status(500).send({ error: 'not enough funds' });
+  }
 });
 app.post('/user', async (req, res) => {
   const { username, phone, balance } = req.body;
